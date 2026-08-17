@@ -1322,43 +1322,78 @@
   // ============================================================
 
   function loadData(){
-    // Simulem la crida a google.script.run
-    // Com que estem a GitHub Pages, no podem usar google.script.run
-    // Necessitem fer fetch a la URL de l'app script
-    
-    // Per ara, intentem carregar dades de l'URL
-    fetch(APP_SCRIPT_URL + '?action=getRecipes')
-      .then(response => response.json())
-      .then(data => {
-        recipes = Array.isArray(data) ? data : [];
-        renderCategories();
-        renderResults();
-        loadWeeklyMenu();
-        updateFavCount();
-      })
-      .catch(error => {
-        console.error('Error carregant receptes:', error);
-        document.getElementById("results").innerHTML =
-          `<div class="empty"><strong>Error carregant receptes</strong>
-          Comprova que la URL de l'Apps Script sigui correcta.</div>`;
-      });
+  // Intentem carregar dades amb un enfocament diferent
+  const url = APP_SCRIPT_URL + '?action=getRecipes';
+  
+  // Fem la crida amb mode no-cors
+  fetch(url, {
+    method: 'GET',
+    mode: 'no-cors',
+    headers: {
+      'Accept': 'application/json'
+    }
+  })
+  .then(response => {
+    // Amb no-cors no podem llegir la resposta directament
+    // Hem de fer servir un truc: carregar com a script
+    return loadDataViaScript();
+  })
+  .catch(error => {
+    console.error('Error amb fetch:', error);
+    // Si falla, provem amb l'altre mètode
+    loadDataViaScript();
+  });
+}
 
-    fetch(APP_SCRIPT_URL + '?action=getCategories')
-      .then(response => response.json())
-      .then(data => {
-        categories = Array.isArray(data) ? data : [];
-        const select = document.getElementById("fCategory");
-        select.innerHTML = `<option value="">Selecciona...</option>`;
-        categories.forEach(c => {
-          const opt = document.createElement("option");
-          opt.value = c;
-          opt.textContent = c;
-          select.appendChild(opt);
-        });
-        renderCategories();
-      })
-      .catch(console.error);
-  }
+// Mètode alternatiu: carregar com a script
+function loadDataViaScript() {
+  const script = document.createElement('script');
+  const callbackName = 'jsonp_callback_' + Date.now();
+  
+  window[callbackName] = function(data) {
+    recipes = Array.isArray(data) ? data : [];
+    renderCategories();
+    renderResults();
+    loadWeeklyMenu();
+    updateFavCount();
+    delete window[callbackName];
+  };
+  
+  script.src = APP_SCRIPT_URL + '?action=getRecipes&callback=' + callbackName;
+  document.head.appendChild(script);
+  
+  // Timeout per si falla
+  setTimeout(() => {
+    if (recipes.length === 0) {
+      document.getElementById("results").innerHTML =
+        `<div class="empty"><strong>Error carregant receptes</strong>
+        No s'ha pogut connectar amb l'API. Comprova la connexió.</div>`;
+    }
+  }, 5000);
+}
+
+// Per categories, també
+function loadCategories() {
+  const callbackName = 'jsonp_categories_' + Date.now();
+  
+  window[callbackName] = function(data) {
+    categories = Array.isArray(data) ? data : [];
+    const select = document.getElementById("fCategory");
+    select.innerHTML = `<option value="">Selecciona...</option>`;
+    categories.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = c;
+      select.appendChild(opt);
+    });
+    renderCategories();
+    delete window[callbackName];
+  };
+  
+  const script = document.createElement('script');
+  script.src = APP_SCRIPT_URL + '?action=getCategories&callback=' + callbackName;
+  document.head.appendChild(script);
+}
 
   // ============================================================
   // CATEGORIES (CHIPS)
