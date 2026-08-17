@@ -1369,14 +1369,19 @@
     const callbackName = 'jsonp_callback_' + Date.now();
 
     window[callbackName] = function(data) {
-      recipes = Array.isArray(data) ? data : [];
-      renderCategories();
-      renderResults();
-      loadWeeklyMenu();
-      updateFavCount();
-      hideSplash();
-      delete window[callbackName];
-    };
+  try {
+    recipes = Array.isArray(data) ? data : [];
+    renderCategories();
+    renderResults();
+    loadWeeklyMenu();
+    updateFavCount();
+  } catch (e) {
+    console.error(e);
+  } finally {
+    hideSplash();
+    delete window[callbackName];
+  }
+};
 
     script.src = APP_SCRIPT_URL + '?action=getRecipes&callback=' + callbackName;
     script.onerror = function() {
@@ -1889,17 +1894,18 @@
   }
 
   function loadWeeklyMenu() {
-    document.getElementById("menuWeekLabel").textContent = currentWeekKey;
-    try {
-      const saved = localStorage.getItem('weeklyMenu_' + currentWeekKey);
-      if (saved) {
-        weeklyMenu = JSON.parse(saved);
-        renderWeeklyMenu();
-      }
-    } catch (e) {
-      console.error(e);
+  const label = document.getElementById("menuWeekLabel");
+  if (label) label.textContent = currentWeekKey;
+  try {
+    const saved = localStorage.getItem('weeklyMenu_' + currentWeekKey);
+    if (saved) {
+      weeklyMenu = JSON.parse(saved);
+      renderWeeklyMenu();
     }
+  } catch (e) {
+    console.error(e);
   }
+}
 
   function saveWeeklyMenuToSheet() {
     const status = document.getElementById("menuStatus");
