@@ -1322,11 +1322,10 @@
   // ============================================================
 
   function loadData(){
-  // Intentem carregar dades amb un enfocament diferent
-  const url = APP_SCRIPT_URL + '?action=getRecipes';
+  // Carregar receptes
+  const urlRecipes = APP_SCRIPT_URL + '?action=getRecipes';
   
-  // Fem la crida amb mode no-cors
-  fetch(url, {
+  fetch(urlRecipes, {
     method: 'GET',
     mode: 'no-cors',
     headers: {
@@ -1335,17 +1334,18 @@
   })
   .then(response => {
     // Amb no-cors no podem llegir la resposta directament
-    // Hem de fer servir un truc: carregar com a script
+    // Carreguem via JSONP
     return loadDataViaScript();
   })
   .catch(error => {
     console.error('Error amb fetch:', error);
-    // Si falla, provem amb l'altre mètode
     loadDataViaScript();
   });
+  
+  // CARREGAR CATEGORIES SEMPRE (aquest era el problema!)
+  loadCategories();
 }
 
-// Mètode alternatiu: carregar com a script
 function loadDataViaScript() {
   const script = document.createElement('script');
   const callbackName = 'jsonp_callback_' + Date.now();
@@ -1360,6 +1360,11 @@ function loadDataViaScript() {
   };
   
   script.src = APP_SCRIPT_URL + '?action=getRecipes&callback=' + callbackName;
+  script.onerror = function() {
+    document.getElementById("results").innerHTML =
+      `<div class="empty"><strong>Error carregant receptes</strong>
+      No s'ha pogut connectar amb l'API.</div>`;
+  };
   document.head.appendChild(script);
   
   // Timeout per si falla
@@ -1367,57 +1372,110 @@ function loadDataViaScript() {
     if (recipes.length === 0) {
       document.getElementById("results").innerHTML =
         `<div class="empty"><strong>Error carregant receptes</strong>
-        No s'ha pogut connectar amb l'API. Comprova la connexió.</div>`;
+        La connexió ha trigat massa.</div>`;
     }
-  }, 5000);
+  }, 8000);
 }
 
-// Per categories, també
+// ============================================================
+// FUNCIÓ PER CARREGAR CATEGORIES (MILLORADA)
+// ============================================================
+
 function loadCategories() {
   const callbackName = 'jsonp_categories_' + Date.now();
   
   window[callbackName] = function(data) {
+    console.log('Categories rebudes:', data);
     categories = Array.isArray(data) ? data : [];
+    
+    // Actualitzar el selector del formulari
     const select = document.getElementById("fCategory");
-    select.innerHTML = `<option value="">Selecciona...</option>`;
-    categories.forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c;
-      opt.textContent = c;
-      select.appendChild(opt);
-    });
+    if (select) {
+      select.innerHTML = `<option value="">Selecciona...</option>`;
+      categories.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        select.appendChild(opt);
+      });
+    }
+    
+    // Renderitzar les categories a la barra superior
     renderCategories();
     delete window[callbackName];
   };
   
   const script = document.createElement('script');
   script.src = APP_SCRIPT_URL + '?action=getCategories&callback=' + callbackName;
+  script.onerror = function() {
+    console.error('Error carregant categories');
+    // Si falla, intentem carregar categories des de les receptes
+    loadCategoriesFromRecipes();
+  };
   document.head.appendChild(script);
+  
+  // Timeout per si falla
+  setTimeout(() => {
+    if (categories.length === 0) {
+      console.warn('Timeout carregant categories, intentant des de receptes');
+      loadCategoriesFromRecipes();
+    }
+  }, 5000);
 }
 
+// ============================================================
+// FALLBACK: Extraure categories de les receptes
+// ============================================================
+
+function loadCategoriesFromRecipes() {
+  if (recipes.length > 0) {
+    const cats = new Set();
+    recipes.forEach(r => {
+      if (r.Categoria) cats.add(r.Categoria);
+    });
+    categories = Array.from(cats).sort();
+    
+    // Actualitzar el selector
+    const select = document.getElementById("fCategory");
+    if (select) {
+      select.innerHTML = `<option value="">Selecciona...</option>`;
+      categories.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        select.appendChild(opt);
+      });
+    }
+    
+    renderCategories();
+    console.log('Categories carregades des de receptes:', categories);
+  }
+}
   // ============================================================
   // CATEGORIES (CHIPS)
   // ============================================================
 
   function renderCategories(){
-    const box = document.getElementById("categoriesScroll");
-    box.innerHTML = `<button class="category-chip active" data-cat="all">📋 Totes</button>`;
+  const box = document.getElementById("categoriesScroll");
+  if (!box) return;
+  
+  box.innerHTML = `<button class="category-chip active" data-cat="all">📋 Totes</button>`;
 
-    categories.forEach(cat => {
-      const btn = document.createElement("button");
-      btn.className = "category-chip";
-      btn.dataset.cat = cat;
-      btn.textContent = cat;
-      btn.onclick = function(){
-        currentCategory = this.dataset.cat === "all" ? null : this.dataset.cat;
-        favoritesOnly = false;
-        currentSearch = "";
-        renderResults();
-        updateCategoryChips();
-      };
-      box.appendChild(btn);
-    });
-  }
+  categories.forEach(cat => {
+    const btn = document.createElement("button");
+    btn.className = "category-chip";
+    btn.dataset.cat = cat;
+    btn.textContent = cat;
+    btn.onclick = function(){
+      currentCategory = this.dataset.cat === "all" ? null : this.dataset.cat;
+      favoritesOnly = false;
+      currentSearch = "";
+      renderResults();
+      updateCategoryChips();
+    };
+    box.appendChild(btn);
+  });
+}
 
   function updateCategoryChips(){
     document.querySelectorAll(".category-chip").forEach(btn => {
