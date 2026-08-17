@@ -1243,11 +1243,17 @@
     return localStorage.getItem(THEME_KEY) || "light";
   }
 
-  function setTheme(theme) {
-    document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : null);
-    localStorage.setItem(THEME_KEY, theme);
-    document.getElementById("themeToggle").textContent = theme === "dark" ? "☀️" : "🌙";
-  }
+  function updateThemeColor(theme) {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#161c13' : '#f0ede0');
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : null);
+  localStorage.setItem(THEME_KEY, theme);
+  updateThemeColor(theme);
+  document.getElementById("themeToggle").textContent = theme === "dark" ? "☀️" : "🌙";
+}
 
   document.getElementById("themeToggle").onclick = function() {
     const current = getTheme();
