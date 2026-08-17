@@ -2237,6 +2237,10 @@
   loadData();
   updateFavCount();
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.error);
+}
+  
   console.log("🍳 Receptes Jan — Versió App!");
 </script>
 </body>
