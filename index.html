@@ -955,13 +955,27 @@
 .shopping-item.have .box { background: var(--success); border-color: var(--success); color: #fff; }
 .shopping-item.have .txt { text-decoration: line-through; }
 
-.ing-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-.ing-row input { flex: 1; }
-.ing-row .ing-remove {
-  flex: 0 0 40px; width: 40px; height: 40px; border-radius: 8px;
-  border: 1px solid var(--line); background: var(--paper2);
-  color: var(--danger); font-size: 20px;
-  display: flex; align-items: center; justify-content: center;
+.ing-row, .step-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.ing-row input, .step-row input {
+  flex: 1;
+}
+.ing-row .ing-remove, .step-row .step-remove {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper2);
+  color: var(--danger);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
   </style>
@@ -1136,22 +1150,27 @@
           <label>Base</label>
           <input id="fBase" placeholder="Pollastre, Arròs...">
         </div>
+
+        <!-- INGREDIENTS: sistema de files -->
         <div class="field editor-full">
-          <label>Ingredients (un per línia)</label>
+          <label>Ingredients (un per fila)</label>
           <div id="fIngredientsList"></div>
-          <button type="button" class="tool" id="addIngredientRow"
+          <button type="button" class="tool" id="addIngredientBtn"
             style="margin-top:6px;padding:8px 14px;border-radius:8px;font-weight:800;font-size:13px;">
             ＋ Afegir ingredient
           </button>
         </div>
+
+        <!-- PASSOS: sistema de files -->
         <div class="field editor-full">
-          <label>Ingredients</label>
-          <textarea id="fIngredients"></textarea>
+          <label>Passos (un per fila)</label>
+          <div id="fStepsList"></div>
+          <button type="button" class="tool" id="addStepBtn"
+            style="margin-top:6px;padding:8px 14px;border-radius:8px;font-weight:800;font-size:13px;">
+            ＋ Afegir pas
+          </button>
         </div>
-        <div class="field editor-full">
-          <label>Passos (un per línia)</label>
-          <textarea id="fSteps"></textarea>
-        </div>
+
         <div class="field"><label>Àpat</label><select id="fApat"><option>Tots dos</option><option>Dinar</option><option>Sopar</option></select></div>
         <div class="field"><label>Tupper</label><select id="fTupper"><option>Sí</option><option>No</option></select></div>
         <div class="field"><label>Entre setmana</label><select id="fEntreSetmana"><option>Sí</option><option>No</option></select></div>
@@ -1159,6 +1178,10 @@
         <div class="field"><label>Menú</label><select id="fMenu"><option>Sí</option><option>No</option></select></div>
         <div class="field"><label>Tipus</label><select id="fTipus"><option>Carn</option><option>Peix</option><option>Llegum</option><option>Pasta</option><option>Arròs</option><option>Ou</option><option>Verdura</option><option>Altres</option></select></div>
         <div class="field"><label>Estat</label><select id="fEstat"><option value="publicada">Publicada</option><option value="esborrany">Esborrany</option></select></div>
+        <div class="field editor-full">
+          <label>Etiquetes (separades per coma)</label>
+          <input id="fTags" placeholder="ràpid, econòmic, ...">
+        </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="tool gold" id="saveRecipe" style="padding:12px 20px;border-radius:10px;font-weight:800;">Guardar</button>
@@ -1726,49 +1749,94 @@ function setTheme(theme) {
   }
 
   // ============================================================
-  // EDITOR
+  // EDITOR — INGREDIENTS I PASSOS (un per fila)
   // ============================================================
 
+  // --- INGREDIENTS ---
   function renderIngredientRows(items) {
-  const box = document.getElementById("fIngredientsList");
-  box.innerHTML = "";
-  const list = (items && items.length) ? items : [""]; // sempre almenys una fila
-  list.forEach(v => addIngredientRow(v));
-}
- 
-function addIngredientRow(value) {
-  const box = document.getElementById("fIngredientsList");
- 
-  const row = document.createElement("div");
-  row.className = "ing-row";
- 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.value = value || "";
-  input.placeholder = "ex: 2 contracuixes de pollastre";
- 
-  const del = document.createElement("button");
-  del.type = "button";
-  del.className = "ing-remove";
-  del.textContent = "×";
-  del.setAttribute("aria-label", "Treure ingredient");
-  del.onclick = function () {
-    row.remove();
-    if (!box.querySelector(".ing-row")) addIngredientRow(""); // no deixar-ho buit del tot
-  };
- 
-  row.appendChild(input);
-  row.appendChild(del);
-  box.appendChild(row);
-}
- 
-function collectIngredientRows() {
-  return [...document.querySelectorAll("#fIngredientsList .ing-row input")]
-    .map(el => el.value.trim())
-    .filter(Boolean)
-    .join(" | ");
-}
-  
+    const box = document.getElementById("fIngredientsList");
+    box.innerHTML = "";
+    const list = (items && items.length) ? items : [""];
+    list.forEach(v => addIngredientRow(v));
+  }
+
+  function addIngredientRow(value) {
+    const box = document.getElementById("fIngredientsList");
+
+    const row = document.createElement("div");
+    row.className = "ing-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = value || "";
+    input.placeholder = "ex: 2 contracuixes de pollastre";
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "ing-remove";
+    del.textContent = "×";
+    del.setAttribute("aria-label", "Treure ingredient");
+    del.onclick = function () {
+      row.remove();
+      if (!box.querySelector(".ing-row")) addIngredientRow("");
+    };
+
+    row.appendChild(input);
+    row.appendChild(del);
+    box.appendChild(row);
+  }
+
+  function collectIngredientRows() {
+    return [...document.querySelectorAll("#fIngredientsList .ing-row input")]
+      .map(el => el.value.trim())
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  // --- PASSOS ---
+  function renderStepRows(items) {
+    const box = document.getElementById("fStepsList");
+    box.innerHTML = "";
+    const list = (items && items.length) ? items : [""];
+    list.forEach(v => addStepRow(v));
+  }
+
+  function addStepRow(value) {
+    const box = document.getElementById("fStepsList");
+
+    const row = document.createElement("div");
+    row.className = "step-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = value || "";
+    input.placeholder = "ex: Escalfar l'oli a la paella";
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "step-remove";
+    del.textContent = "×";
+    del.setAttribute("aria-label", "Treure pas");
+    del.onclick = function () {
+      row.remove();
+      if (!box.querySelector(".step-row")) addStepRow("");
+    };
+
+    row.appendChild(input);
+    row.appendChild(del);
+    box.appendChild(row);
+  }
+
+  function collectStepRows() {
+    return [...document.querySelectorAll("#fStepsList .step-row input")]
+      .map(el => el.value.trim())
+      .filter(Boolean);
+  }
+
+  // ============================================================
+  // EDITOR — OBRI, TANCA, RESET, COLLECT
+  // ============================================================
+
   let editingRecipeId = null;
 
   function openAdd() {
@@ -1788,7 +1856,7 @@ function collectIngredientRows() {
     document.getElementById("fBase").value = (recipe.Base || []).join(", ");
     document.getElementById("fTags").value = (recipe.Tags || []).join(", ");
     renderIngredientRows(parseIngredients(recipe.Ingredients));
-    document.getElementById("fSteps").value = (recipe.Passos || []).join("\n");
+    renderStepRows(recipe.Passos || []);
     document.getElementById("fEstat").value = recipe.Estat || "publicada";
     document.getElementById("fApat").value = recipe.Àpat || "Tots dos";
     document.getElementById("fTupper").value = recipe.Tupper || "No";
@@ -1807,8 +1875,9 @@ function collectIngredientRows() {
   }
 
   function resetEditorForm() {
-    ["fName", "fBase", "fTags", "fSteps"].forEach(id => document.getElementById(id).value = "");
+    ["fName", "fBase", "fTags"].forEach(id => document.getElementById(id).value = "");
     renderIngredientRows([]);
+    renderStepRows([]);
     document.getElementById("fCategory").value = "";
     document.getElementById("fEstat").value = "publicada";
     document.getElementById("fApat").value = "Tots dos";
@@ -1827,7 +1896,7 @@ function collectIngredientRows() {
       Base: document.getElementById("fBase").value.split(",").map(x => x.trim()).filter(Boolean),
       Tags: document.getElementById("fTags").value.split(",").map(x => x.trim()).filter(Boolean),
       Ingredients: collectIngredientRows(),
-      Passos: document.getElementById("fSteps").value.split("\n").map(x => x.trim()).filter(Boolean),
+      Passos: collectStepRows(),
       Estat: document.getElementById("fEstat").value,
       Àpat: document.getElementById("fApat").value,
       Tupper: document.getElementById("fTupper").value,
@@ -1838,219 +1907,187 @@ function collectIngredientRows() {
     };
   }
 
-// ============================================================
-// GUARDAR RECEPTA — connexió real amb el Sheet (v2)
-// Reemplaça la funció saveRecipe i afegeix reloadRecipesAfterSave.
-// No cal tocar el backend: el doPost de l'Apps Script ja crida
-// handleRequest, i un POST form-encoded omple e.parameter tot sol.
-// ============================================================
+  // ============================================================
+  // GUARDAR RECEPTA
+  // ============================================================
 
-function saveRecipe() {
-  const recipe = collectEditorRecipe();
-  const msg = document.getElementById("saveMessage");
+  function saveRecipe() {
+    const recipe = collectEditorRecipe();
+    const msg = document.getElementById("saveMessage");
 
-  if (!recipe.Nom || !recipe.Categoria) {
-    msg.textContent = "⚠️ Nom i categoria obligatoris.";
-    return;
+    if (!recipe.Nom || !recipe.Categoria) {
+      msg.textContent = "⚠️ Nom i categoria obligatoris.";
+      return;
+    }
+
+    msg.textContent = "Guardant...";
+
+    const action = editingRecipeId ? "updateRecipe" : "addRecipe";
+
+    const body = new URLSearchParams({
+      action: action,
+      data: JSON.stringify(recipe)
+    });
+
+    fetch(APP_SCRIPT_URL, { method: "POST", body: body })
+      .then(r => r.json())
+      .then(res => {
+        if (res && res.error) {
+          msg.textContent = "❌ " + res.error;
+          return;
+        }
+        msg.textContent = "✅ Guardat!";
+        reloadRecipesAfterSave(recipe.Nom);
+      })
+      .catch(() => {
+        msg.textContent = "✅ Enviat, refrescant...";
+        reloadRecipesAfterSave(recipe.Nom);
+      });
   }
 
-  msg.textContent = "Guardant...";
+  function reloadRecipesAfterSave(savedName) {
+    const callbackName = "jsonp_reload_" + Date.now();
 
-  const action = editingRecipeId ? "updateRecipe" : "addRecipe";
-
-  // POST form-encoded: és una "simple request" (no dispara preflight CORS)
-  // i omple e.parameter al doPost, que handleRequest ja sap llegir.
-  const body = new URLSearchParams({
-    action: action,
-    data: JSON.stringify(recipe)
-  });
-
-  fetch(APP_SCRIPT_URL, { method: "POST", body: body })
-    .then(r => r.json())
-    .then(res => {
-      if (res && res.error) {
-        msg.textContent = "❌ " + res.error;
-        return;
+    window[callbackName] = function(data) {
+      if (Array.isArray(data)) recipes = data;
+      renderCategories();
+      renderResults();
+      updateFavCount();
+      closeEditor();
+      if (savedName) {
+        const saved = recipes.find(r => r.Nom === savedName);
+        if (saved) openRecipeDetail(saved);
       }
-      msg.textContent = "✅ Guardat!";
-      reloadRecipesAfterSave(recipe.Nom);
-    })
-    .catch(() => {
-      // Si el navegador bloqueja la lectura de la resposta (CORS), el POST
-      // igualment ha arribat al servidor: rellegim del Sheet per confirmar.
-      msg.textContent = "✅ Enviat, refrescant...";
-      reloadRecipesAfterSave(recipe.Nom);
+      delete window[callbackName];
+    };
+
+    const script = document.createElement("script");
+    script.src = APP_SCRIPT_URL + "?action=getRecipes&callback=" + callbackName;
+    script.onerror = function() {
+      closeEditor();
+      delete window[callbackName];
+    };
+    document.head.appendChild(script);
+  }
+
+  // ============================================================
+  // MENÚ SETMANAL
+  // ============================================================
+
+  function isWeekdaySlot(dayIndex) {
+    return dayIndex < 5;
+  }
+
+  function baseList(r) {
+    return Array.isArray(r.Base) ? r.Base.map(norm).filter(Boolean) : [];
+  }
+
+  function menuCandidates(meal, options, dayIndex) {
+    const weekdaySuitable = isWeekdaySlot(dayIndex);
+    return recipes.filter(r => {
+      if (norm(r.Menu) !== "si") return false;
+      if (!mealAllowed(r, meal)) return false;
+      if (options.tupper === "yes" && norm(r.Tupper) !== "si") return false;
+      if (weekdaySuitable && norm(r.EntreSetmana) !== "si") return false;
+      return true;
     });
-}
+  }
 
-// Rellegeix les receptes del Sheet (JSONP), refresca la UI i reobre el
-// detall de la recepta guardada per confirmar que hi és.
-function reloadRecipesAfterSave(savedName) {
-  const callbackName = "jsonp_reload_" + Date.now();
+  function chooseRecipe(candidates, ctx, options) {
+    const available = candidates.filter(r => !ctx.usedNames.has(r.Nom));
+    if (!available.length) return null;
 
-  window[callbackName] = function(data) {
-    if (Array.isArray(data)) recipes = data;
-    renderCategories();
-    renderResults();
-    updateFavCount();
-    closeEditor();
-    if (savedName) {
-      const saved = recipes.find(r => r.Nom === savedName);
-      if (saved) openRecipeDetail(saved);
-    }
-    delete window[callbackName];
-  };
+    const scored = available.map(r => {
+      let score = Math.random() * 8;
+      const tipus = r.Tipus || "Altres";
+      const bases = baseList(r);
+      const pes = norm(r.Pes) || "mitja";
 
-  const script = document.createElement("script");
-  script.src = APP_SCRIPT_URL + "?action=getRecipes&callback=" + callbackName;
-  script.onerror = function() {
-    closeEditor();
-    delete window[callbackName];
-  };
-  document.head.appendChild(script);
-}
- // ============================================================
-// MENÚ SETMANAL — generador equilibrat (v2)
-// Reemplaça menuCandidates, chooseRecipe i generateWeeklyMenu
-// ============================================================
+      if (ctx.typesToday.has(tipus)) score -= 100;
+      score -= 30 * (ctx.typeWeek.get(tipus) || 0);
+      bases.forEach(b => { score -= 12 * (ctx.baseWeek.get(b) || 0); });
+      if (bases.some(b => ctx.basesYesterday.has(b))) score -= 20;
+      if (bases.some(b => ctx.basesToday.has(b))) score -= 25;
+      if (pes === "lleuger" && ctx.pesToday.has("lleuger")) score -= 40;
+      if (pes === "contundent" && ctx.pesToday.has("contundent")) score -= 15;
+      if (options.tupper === "prefer" && norm(r.Tupper) === "si") score += 15;
 
-// Un slot és "entre setmana" si cau de dilluns a divendres (índex 0..4).
-// Així, en mode "Setmana completa" els plats elaborats només poden anar
-// a dissabte/diumenge, i els dies feiners reben plats aptes entre setmana.
-function isWeekdaySlot(dayIndex) {
-  return dayIndex < 5;
-}
+      return { recipe: r, score };
+    }).sort((a, b) => b.score - a.score);
 
-// Bases normalitzades d'una recepta (proteïna o ingredient principal).
-function baseList(r) {
-  return Array.isArray(r.Base) ? r.Base.map(norm).filter(Boolean) : [];
-}
+    return scored[0]?.recipe || null;
+  }
 
-function menuCandidates(meal, options, dayIndex) {
-  const weekdaySuitable = isWeekdaySlot(dayIndex);
-  return recipes.filter(r => {
-    if (norm(r.Menu) !== "si") return false;
-    if (!mealAllowed(r, meal)) return false;
-    if (options.tupper === "yes" && norm(r.Tupper) !== "si") return false;
-    // Dl..Dv: només plats marcats aptes entre setmana. Cap de setmana: lliure.
-    if (weekdaySuitable && norm(r.EntreSetmana) !== "si") return false;
-    return true;
-  });
-}
+  function generateWeeklyMenu() {
+    const period = document.getElementById("menuPeriod").value;
+    const mealsMode = document.getElementById("menuMeals").value;
+    const tupper = document.getElementById("menuTupper").value;
 
-// ctx porta l'estat d'equilibri de tota la setmana i del dia en curs.
-// ============================================================
-// MENÚ SETMANAL — generador equilibrat (v3: afegeix el Pes)
-// Reemplaça chooseRecipe i generateWeeklyMenu.
-// (menuCandidates, isWeekdaySlot i baseList es queden igual que a la v2.)
-// ============================================================
+    const options = { tupper };
+    const days = period === "weekday" ? MENU_DAYS.slice(0, 5) : MENU_DAYS.slice();
+    const meals = mealsMode === "both"
+      ? ["Dinar", "Sopar"]
+      : [mealsMode === "lunch" ? "Dinar" : "Sopar"];
 
-function chooseRecipe(candidates, ctx, options) {
-  const available = candidates.filter(r => !ctx.usedNames.has(r.Nom));
-  if (!available.length) return null;
+    const ctx = {
+      usedNames: new Set(),
+      typeWeek: new Map(),
+      baseWeek: new Map(),
+      basesYesterday: new Set(),
+      typesToday: new Set(),
+      basesToday: new Set(),
+      pesToday: new Set()
+    };
 
-  const scored = available.map(r => {
-    let score = Math.random() * 8;
-    const tipus = r.Tipus || "Altres";
-    const bases = baseList(r);
-    // Pes: contundent / mitjà / lleuger. Buit = mitjà (no trenca res).
-    const pes = norm(r.Pes) || "mitja";
+    weeklyMenu = [];
+    replacedSlots = new Set();
 
-    // No repetir el mateix Tipus dins d'un mateix dia.
-    if (ctx.typesToday.has(tipus)) score -= 100;
+    days.forEach((day, dayIndex) => {
+      ctx.typesToday = new Set();
+      ctx.basesToday = new Set();
+      ctx.pesToday = new Set();
 
-    // Repartir Tipus i bases al llarg de la setmana.
-    score -= 30 * (ctx.typeWeek.get(tipus) || 0);
-    bases.forEach(b => { score -= 12 * (ctx.baseWeek.get(b) || 0); });
+      meals.forEach(meal => {
+        let candidates = menuCandidates(meal, options, dayIndex);
 
-    // No repetir base d'ahir ni del mateix dia.
-    if (bases.some(b => ctx.basesYesterday.has(b))) score -= 20;
-    if (bases.some(b => ctx.basesToday.has(b))) score -= 25;
+        if (!candidates.length) {
+          candidates = recipes.filter(r =>
+            norm(r.Menu) === "si" &&
+            mealAllowed(r, meal) &&
+            (tupper !== "yes" || norm(r.Tupper) === "si")
+          );
+        }
 
-    // Equilibri de pes dins del dia: evita dos lleugers junts (defecte principal)
-    // i, més fluix, dos contundents junts.
-    if (pes === "lleuger" && ctx.pesToday.has("lleuger")) score -= 40;
-    if (pes === "contundent" && ctx.pesToday.has("contundent")) score -= 15;
+        let chosen = chooseRecipe(candidates, ctx, options);
+        if (!chosen && candidates.length) {
+          const relaxed = { ...ctx, usedNames: new Set() };
+          chosen = chooseRecipe(candidates, relaxed, options);
+        }
 
-    // Preferència de tupper.
-    if (options.tupper === "prefer" && norm(r.Tupper) === "si") score += 15;
+        weeklyMenu.push({ day, meal, recipeName: chosen ? chosen.Nom : "" });
 
-    return { recipe: r, score };
-  }).sort((a, b) => b.score - a.score);
+        if (chosen) {
+          const tipus = chosen.Tipus || "Altres";
+          ctx.usedNames.add(chosen.Nom);
+          ctx.typesToday.add(tipus);
+          ctx.typeWeek.set(tipus, (ctx.typeWeek.get(tipus) || 0) + 1);
+          ctx.pesToday.add(norm(chosen.Pes) || "mitja");
+          baseList(chosen).forEach(b => {
+            ctx.basesToday.add(b);
+            ctx.baseWeek.set(b, (ctx.baseWeek.get(b) || 0) + 1);
+          });
+        }
+      });
 
-  return scored[0]?.recipe || null;
-}
-
-function generateWeeklyMenu() {
-  const period = document.getElementById("menuPeriod").value;
-  const mealsMode = document.getElementById("menuMeals").value;
-  const tupper = document.getElementById("menuTupper").value;
-
-  const options = { tupper };
-  const days = period === "weekday" ? MENU_DAYS.slice(0, 5) : MENU_DAYS.slice();
-  const meals = mealsMode === "both"
-    ? ["Dinar", "Sopar"]
-    : [mealsMode === "lunch" ? "Dinar" : "Sopar"];
-
-  const ctx = {
-    usedNames: new Set(),
-    typeWeek: new Map(),
-    baseWeek: new Map(),
-    basesYesterday: new Set(),
-    typesToday: new Set(),
-    basesToday: new Set(),
-    pesToday: new Set()      // pesos ja usats avui (lleuger/mitja/contundent)
-  };
-
-  weeklyMenu = [];
-  replacedSlots = new Set();
-
-  days.forEach((day, dayIndex) => {
-    ctx.typesToday = new Set();
-    ctx.basesToday = new Set();
-    ctx.pesToday = new Set();
-
-    meals.forEach(meal => {
-      let candidates = menuCandidates(meal, options, dayIndex);
-
-      if (!candidates.length) {
-        candidates = recipes.filter(r =>
-          norm(r.Menu) === "si" &&
-          mealAllowed(r, meal) &&
-          (tupper !== "yes" || norm(r.Tupper) === "si")
-        );
-      }
-
-      let chosen = chooseRecipe(candidates, ctx, options);
-      if (!chosen && candidates.length) {
-        const relaxed = { ...ctx, usedNames: new Set() };
-        chosen = chooseRecipe(candidates, relaxed, options);
-      }
-
-      weeklyMenu.push({ day, meal, recipeName: chosen ? chosen.Nom : "" });
-
-      if (chosen) {
-        const tipus = chosen.Tipus || "Altres";
-        ctx.usedNames.add(chosen.Nom);
-        ctx.typesToday.add(tipus);
-        ctx.typeWeek.set(tipus, (ctx.typeWeek.get(tipus) || 0) + 1);
-        ctx.pesToday.add(norm(chosen.Pes) || "mitja");
-        baseList(chosen).forEach(b => {
-          ctx.basesToday.add(b);
-          ctx.baseWeek.set(b, (ctx.baseWeek.get(b) || 0) + 1);
-        });
-      }
+      ctx.basesYesterday = new Set(ctx.basesToday);
     });
 
-    ctx.basesYesterday = new Set(ctx.basesToday);
-  });
-
-  renderWeeklyMenu();
-  const empty = weeklyMenu.filter(s => !s.recipeName).length;
-  document.getElementById("menuStatus").textContent = empty
-    ? `⚠️ Falten ${empty} àpat${empty === 1 ? "" : "s"} per manca de receptes aptes.`
-    : "✅ Menú generat i equilibrat!";
-}
+    renderWeeklyMenu();
+    const empty = weeklyMenu.filter(s => !s.recipeName).length;
+    document.getElementById("menuStatus").textContent = empty
+      ? `⚠️ Falten ${empty} àpat${empty === 1 ? "" : "s"} per manca de receptes aptes.`
+      : "✅ Menú generat i equilibrat!";
+  }
 
   function renderWeeklyMenu() {
     const grid = document.getElementById("menuGrid");
@@ -2089,18 +2126,18 @@ function generateWeeklyMenu() {
   }
 
   function loadWeeklyMenu() {
-  const label = document.getElementById("menuWeekLabel");
-  if (label) label.textContent = currentWeekKey;
-  try {
-    const saved = localStorage.getItem('weeklyMenu_' + currentWeekKey);
-    if (saved) {
-      weeklyMenu = JSON.parse(saved);
-      renderWeeklyMenu();
+    const label = document.getElementById("menuWeekLabel");
+    if (label) label.textContent = currentWeekKey;
+    try {
+      const saved = localStorage.getItem('weeklyMenu_' + currentWeekKey);
+      if (saved) {
+        weeklyMenu = JSON.parse(saved);
+        renderWeeklyMenu();
+      }
+    } catch (e) {
+      console.error(e);
     }
-  } catch (e) {
-    console.error(e);
   }
-}
 
   function saveWeeklyMenuToSheet() {
     const status = document.getElementById("menuStatus");
@@ -2119,130 +2156,128 @@ function generateWeeklyMenu() {
   }
 
   function parseIngredients(str) {
-  const s = String(str || "");
-  // Separador canònic: la barra. Si una recepta encara va amb comes
-  // (les de cap de setmana), hi caiem de fallback.
-  const parts = s.includes("|") ? s.split("|") : s.split(",");
-  return parts.map(x => x.trim()).filter(Boolean);
-}
- 
-function buildRecipeShoppingGroups(recipe) {
-  return [{ title: recipe.Nom, items: parseIngredients(recipe.Ingredients) }];
-}
- 
-function buildMenuShoppingGroups() {
-  const groups = [];
-  const seen = new Set();
-  weeklyMenu.forEach(slot => {
-    if (!slot.recipeName || seen.has(slot.recipeName)) return; // un plat repetit no es duplica
-    seen.add(slot.recipeName);
-    const r = recipes.find(x => x.Nom === slot.recipeName);
-    if (r) groups.push({ title: r.Nom, items: parseIngredients(r.Ingredients) });
-  });
-  return groups;
-}
- 
-function renderShoppingList(groups, hintText, emptyText) {
-  document.getElementById("shoppingHint").textContent = hintText || "";
-  document.getElementById("shoppingStatus").textContent = "";
-  const box = document.getElementById("shoppingList");
- 
-  const hasItems = groups.some(g => g.items.length);
-  if (!hasItems) {
-    box.innerHTML = `<div class="empty"><strong>Sense ingredients</strong>${escapeHtml(emptyText || "No hi ha res per llistar.")}</div>`;
-    return;
+    const s = String(str || "");
+    const parts = s.includes("|") ? s.split("|") : s.split(",");
+    return parts.map(x => x.trim()).filter(Boolean);
   }
- 
-  box.innerHTML = groups.map(g => `
-    <div class="shopping-group">
-      <div class="shopping-group-title">${escapeHtml(g.title)}</div>
-      ${g.items.map(it => `
-        <button class="shopping-item" onclick="toggleShoppingItem(this)">
-          <span class="box">☐</span>
-          <span class="txt">${escapeHtml(it)}</span>
-        </button>
-      `).join("")}
-    </div>
-  `).join("");
-}
- 
-function toggleShoppingItem(btn) {
-  btn.classList.toggle("have");
-  btn.querySelector(".box").textContent = btn.classList.contains("have") ? "✓" : "☐";
-}
- 
-function openRecipeShoppingList(recipe) {
-  if (!recipe) return;
-  renderShoppingList(
-    buildRecipeShoppingGroups(recipe),
-    "Marca el que ja tens. Copiar exporta només el que falta."
-  );
-  document.getElementById("shoppingModal").classList.add("show");
-  document.body.style.overflow = "hidden";
-}
- 
-function openMenuShoppingList() {
-  renderShoppingList(
-    buildMenuShoppingGroups(),
-    "Ingredients del menú d'aquesta setmana, per plat. Marca el que ja tens.",
-    "Encara no has generat cap menú aquesta setmana."
-  );
-  document.getElementById("shoppingModal").classList.add("show");
-  document.body.style.overflow = "hidden";
-}
- 
-function closeShopping() {
-  document.getElementById("shoppingModal").classList.remove("show");
-  document.body.style.overflow = "";
-}
+
+  function buildRecipeShoppingGroups(recipe) {
+    return [{ title: recipe.Nom, items: parseIngredients(recipe.Ingredients) }];
+  }
+
+  function buildMenuShoppingGroups() {
+    const groups = [];
+    const seen = new Set();
+    weeklyMenu.forEach(slot => {
+      if (!slot.recipeName || seen.has(slot.recipeName)) return;
+      seen.add(slot.recipeName);
+      const r = recipes.find(x => x.Nom === slot.recipeName);
+      if (r) groups.push({ title: r.Nom, items: parseIngredients(r.Ingredients) });
+    });
+    return groups;
+  }
+
+  function renderShoppingList(groups, hintText, emptyText) {
+    document.getElementById("shoppingHint").textContent = hintText || "";
+    document.getElementById("shoppingStatus").textContent = "";
+    const box = document.getElementById("shoppingList");
+
+    const hasItems = groups.some(g => g.items.length);
+    if (!hasItems) {
+      box.innerHTML = `<div class="empty"><strong>Sense ingredients</strong>${escapeHtml(emptyText || "No hi ha res per llistar.")}</div>`;
+      return;
+    }
+
+    box.innerHTML = groups.map(g => `
+      <div class="shopping-group">
+        <div class="shopping-group-title">${escapeHtml(g.title)}</div>
+        ${g.items.map(it => `
+          <button class="shopping-item" onclick="toggleShoppingItem(this)">
+            <span class="box">☐</span>
+            <span class="txt">${escapeHtml(it)}</span>
+          </button>
+        `).join("")}
+      </div>
+    `).join("");
+  }
+
+  function toggleShoppingItem(btn) {
+    btn.classList.toggle("have");
+    btn.querySelector(".box").textContent = btn.classList.contains("have") ? "✓" : "☐";
+  }
+
+  function openRecipeShoppingList(recipe) {
+    if (!recipe) return;
+    renderShoppingList(
+      buildRecipeShoppingGroups(recipe),
+      "Marca el que ja tens. Copiar exporta només el que falta."
+    );
+    document.getElementById("shoppingModal").classList.add("show");
+    document.body.style.overflow = "hidden";
+  }
+
+  function openMenuShoppingList() {
+    renderShoppingList(
+      buildMenuShoppingGroups(),
+      "Ingredients del menú d'aquesta setmana, per plat. Marca el que ja tens.",
+      "Encara no has generat cap menú aquesta setmana."
+    );
+    document.getElementById("shoppingModal").classList.add("show");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeShopping() {
+    document.getElementById("shoppingModal").classList.remove("show");
+    document.body.style.overflow = "";
+  }
 
   function copyShoppingList() {
-  const groups = [...document.querySelectorAll("#shoppingList .shopping-group")];
-  const lines = [];
- 
-  groups.forEach(g => {
-    const title = (g.querySelector(".shopping-group-title")?.textContent || "").trim();
-    const items = [...g.querySelectorAll(".shopping-item")]
-      .filter(el => !el.classList.contains("have"))
-      .map(el => (el.querySelector(".txt")?.textContent || "").trim())
-      .filter(Boolean);
-    if (items.length) {
-      lines.push(title.toUpperCase());
-      items.forEach(i => lines.push("- " + i));
-      lines.push("");
+    const groups = [...document.querySelectorAll("#shoppingList .shopping-group")];
+    const lines = [];
+
+    groups.forEach(g => {
+      const title = (g.querySelector(".shopping-group-title")?.textContent || "").trim();
+      const items = [...g.querySelectorAll(".shopping-item")]
+        .filter(el => !el.classList.contains("have"))
+        .map(el => (el.querySelector(".txt")?.textContent || "").trim())
+        .filter(Boolean);
+      if (items.length) {
+        lines.push(title.toUpperCase());
+        items.forEach(i => lines.push("- " + i));
+        lines.push("");
+      }
+    });
+
+    const status = document.getElementById("shoppingStatus");
+    if (!lines.length) {
+      status.textContent = "Ho tens tot marcat, res per comprar.";
+      return;
     }
-  });
- 
-  const status = document.getElementById("shoppingStatus");
-  if (!lines.length) {
-    status.textContent = "Ho tens tot marcat, res per comprar.";
-    return;
+
+    const text = lines.join("\n").trim();
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => status.textContent = "✅ Copiat!")
+        .catch(() => shoppingCopyFallback(text, status));
+    } else {
+      shoppingCopyFallback(text, status);
+    }
   }
- 
-  const text = lines.join("\n").trim();
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => status.textContent = "✅ Copiat!")
-      .catch(() => shoppingCopyFallback(text, status));
-  } else {
-    shoppingCopyFallback(text, status);
+
+  function shoppingCopyFallback(text, status) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;opacity:0;left:-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      status.textContent = "✅ Copiat!";
+    } catch {
+      status.textContent = "❌ No s'ha pogut copiar.";
+    }
+    document.body.removeChild(ta);
   }
-}
- 
-function shoppingCopyFallback(text, status) {
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.style.cssText = "position:fixed;opacity:0;left:-9999px";
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand("copy");
-    status.textContent = "✅ Copiat!";
-  } catch {
-    status.textContent = "❌ No s'ha pogut copiar.";
-  }
-  document.body.removeChild(ta);
-}
 
   // ============================================================
   // SUBSTITUIR PLAT DEL MENÚ
@@ -2479,7 +2514,10 @@ function shoppingCopyFallback(text, status) {
   document.getElementById("closeEditor").onclick = closeEditor;
   document.getElementById("cancelEditor").onclick = closeEditor;
   document.getElementById("saveRecipe").onclick = saveRecipe;
-  document.getElementById("addIngredientRow").onclick = () => addIngredientRow("");
+
+  // Botons per afegir files
+  document.getElementById("addIngredientBtn").onclick = () => addIngredientRow("");
+  document.getElementById("addStepBtn").onclick = () => addStepRow("");
 
   document.getElementById("generateMenu").onclick = generateWeeklyMenu;
   document.getElementById("saveMenu").onclick = saveWeeklyMenuToSheet;
