@@ -1018,10 +1018,10 @@
 
   <!-- QUICK ACTIONS -->
   <div class="quick-actions">
-    <button class="quick-btn" id="showAll"><span class="icon">🍳</span>Totes</button>
-    <button class="quick-btn" id="random"><span class="icon">🎲</span>Sorpresa</button>
+    <button class="quick-btn" id="qbTupper"><span class="icon">🍱</span>Tupper</button>
+    <button class="quick-btn" id="qbWeekend"><span class="icon">🍲</span>Cap de setmana</button>
     <button class="quick-btn gold" id="ingredients"><span class="icon">🥬</span>Què tinc?</button>
-    <button class="quick-btn" id="favorites"><span class="icon">⭐</span>Favorits</button>
+    <button class="quick-btn" id="random"><span class="icon">🎲</span>Sorpresa</button>
   </div>
 
   <!-- RESULTS -->
@@ -1240,6 +1240,7 @@
   let currentCategory = null;
   let currentSearch = "";
   let favoritesOnly = false;
+  let mealFilter = null; // null | 'tupper' | 'weekend'
   let weeklyMenu = [];
   let replacedSlots = new Set();
   let currentWeekKey = getWeekKey(new Date());
@@ -1426,9 +1427,11 @@ function setTheme(theme) {
     switchView("recipes");
     favoritesOnly = true;
     currentCategory = null;
+    mealFilter = null;
     currentSearch = "";
     renderResults();
     updateCategoryChips();
+    updateQuickButtons();
   };
 
   // ============================================================
@@ -1560,35 +1563,45 @@ function setTheme(theme) {
   function renderCategories() {
     const box = document.getElementById("categoriesScroll");
     if (!box) return;
+    box.innerHTML = "";
 
-    box.innerHTML = `<button class="category-chip active" data-cat="all">📋 Totes</button>`;
-    box.querySelector('[data-cat="all"]').onclick = function() {
-  currentCategory = null;
-  favoritesOnly = false;
-  currentSearch = "";
-  renderResults();
-  updateCategoryChips();
-};
+    const allBtn = document.createElement("button");
+    allBtn.className = "category-chip active";
+    allBtn.dataset.cat = "all";
+    allBtn.textContent = "📋 Totes";
+    allBtn.onclick = function () {
+      currentCategory = null;
+      favoritesOnly = false;
+      mealFilter = null;
+      currentSearch = "";
+      renderResults();
+      updateCategoryChips();
+      updateQuickButtons();
+    };
+    box.appendChild(allBtn);
 
     categories.forEach(cat => {
       const btn = document.createElement("button");
       btn.className = "category-chip";
       btn.dataset.cat = cat;
       btn.textContent = cat;
-      btn.onclick = function() {
+      btn.onclick = function () {
         currentCategory = this.dataset.cat === "all" ? null : this.dataset.cat;
         favoritesOnly = false;
+        mealFilter = null;
         currentSearch = "";
         renderResults();
         updateCategoryChips();
+        updateQuickButtons();
       };
       box.appendChild(btn);
     });
   }
 
   function updateCategoryChips() {
+    const noFilter = !currentCategory && !favoritesOnly && !mealFilter;
     document.querySelectorAll(".category-chip").forEach(btn => {
-      const isActive = (btn.dataset.cat === "all" && !currentCategory) ||
+      const isActive = (btn.dataset.cat === "all" && noFilter) ||
         (btn.dataset.cat === currentCategory);
       btn.classList.toggle("active", isActive);
     });
@@ -1606,6 +1619,11 @@ function setTheme(theme) {
     }
     if (favoritesOnly) {
       list = list.filter(r => favorites.has(r.Nom));
+    }
+    if (mealFilter === "tupper") {
+      list = list.filter(r => norm(r.Tupper) === "si");
+    } else if (mealFilter === "weekend") {
+      list = list.filter(r => norm(r.EntreSetmana) === "no");
     }
     if (currentSearch) {
       const q = norm(currentSearch);
@@ -1628,6 +1646,7 @@ function setTheme(theme) {
         <strong>${favoritesOnly ? "No tens favorits" : "No hi ha receptes"}</strong>
         ${favoritesOnly ? "Obre una recepta i prem ☆ per afegir-la" : "Prova una altra categoria o cerca"}
       </div>`;
+      updateQuickButtons();
       return;
     }
 
@@ -1651,6 +1670,18 @@ function setTheme(theme) {
         </div>
       `;
     }).join("");
+    updateQuickButtons();
+  }
+
+  // ============================================================
+  // UPDATE QUICK BUTTONS
+  // ============================================================
+
+  function updateQuickButtons() {
+    const t = document.getElementById("qbTupper");
+    const w = document.getElementById("qbWeekend");
+    if (t) t.classList.toggle("on", mealFilter === "tupper");
+    if (w) w.classList.toggle("on", mealFilter === "weekend");
   }
 
   // ============================================================
@@ -2487,60 +2518,60 @@ function setTheme(theme) {
   // EVENT LISTENERS
   // ============================================================
 
-  document.getElementById("showAll").onclick = function() {
-    currentCategory = null;
-    favoritesOnly = false;
-    currentSearch = "";
-    renderResults();
-    updateCategoryChips();
+  // NOTA: Els listeners de showAll i favorites han estat eliminats
+  // (els botons ja no existeixen al DOM)
+
+  // ============================================================
+  // BOTÓ SORPRESA (v2)
+  // Respecta el filtre de categoria i evita repetir l'últim plat.
+  // ============================================================
+
+  let lastRandomName = null;
+
+  document.getElementById("random").onclick = function () {
+    if (!recipes.length) return;
+    let pool = recipes.slice();
+    if (currentCategory) pool = pool.filter(r => r.Categoria === currentCategory);
+    if (mealFilter === "tupper") pool = pool.filter(r => norm(r.Tupper) === "si");
+    else if (mealFilter === "weekend") pool = pool.filter(r => norm(r.EntreSetmana) === "no");
+    if (!pool.length) return;
+    if (pool.length > 1 && lastRandomName) {
+      const filtered = pool.filter(r => r.Nom !== lastRandomName);
+      if (filtered.length) pool = filtered;
+    }
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    if (!chosen) return;
+    lastRandomName = chosen.Nom;
+    openRecipeDetail(chosen);
   };
 
   // ============================================================
-// BOTÓ SORPRESA (v2)
-// Reemplaça el listener actual de #random.
-//
-// Canvis:
-//  - NO s'autoimposa la categoria del plat que surt (aquell era el bug
-//    que et deixava atrapat repetint el mateix plat).
-//  - Respecta la categoria que TU tinguis seleccionada; si estàs a
-//    "Totes", tria de tot el receptari.
-//  - Evita repetir l'últim plat que ha sortit (si n'hi ha més d'un).
-// ============================================================
+  // BOTONS TUPPER I CAP DE SETMANA
+  // ============================================================
 
-let lastRandomName = null;
-
-document.getElementById("random").onclick = function() {
-  if (!recipes.length) return;
-
-  // Respecta el filtre de categoria actiu, però no en crea cap de nou.
-  let pool = currentCategory
-    ? recipes.filter(r => r.Categoria === currentCategory)
-    : recipes.slice();
-
-  if (!pool.length) return;
-
-  // Evita repetir l'últim, si hi ha alternativa.
-  if (pool.length > 1 && lastRandomName) {
-    const filtered = pool.filter(r => r.Nom !== lastRandomName);
-    if (filtered.length) pool = filtered;
-  }
-
-  const chosen = pool[Math.floor(Math.random() * pool.length)];
-  if (!chosen) return;
-
-  lastRandomName = chosen.Nom;
-  openRecipeDetail(chosen);
-};
-
-  document.getElementById("favorites").onclick = function() {
-    favoritesOnly = !favoritesOnly;
-    if (favoritesOnly) {
-      currentCategory = null;
-      currentSearch = "";
-    }
+  document.getElementById("qbTupper").onclick = function () {
+    mealFilter = (mealFilter === "tupper") ? null : "tupper";
+    favoritesOnly = false;
+    currentCategory = null;
+    currentSearch = "";
     renderResults();
     updateCategoryChips();
+    updateQuickButtons();
   };
+
+  document.getElementById("qbWeekend").onclick = function () {
+    mealFilter = (mealFilter === "weekend") ? null : "weekend";
+    favoritesOnly = false;
+    currentCategory = null;
+    currentSearch = "";
+    renderResults();
+    updateCategoryChips();
+    updateQuickButtons();
+  };
+
+  // ============================================================
+  // ALTRES BOTONS
+  // ============================================================
 
   document.getElementById("ingredients").onclick = openIngredients;
   document.getElementById("closeIngredients").onclick = closeIngredients;
