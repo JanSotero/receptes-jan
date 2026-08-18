@@ -1676,6 +1676,7 @@ function setTheme(theme) {
       openRecipeDetail(recipe);
       renderResults();
     };
+    document.getElementById("shoppingBtn").onclick = () => openRecipeShoppingList(recipe);
 
     document.getElementById("detailEdit").onclick = function() {
       modal.classList.remove("show");
