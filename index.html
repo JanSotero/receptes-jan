@@ -1782,86 +1782,141 @@ function setTheme(theme) {
     }
   }
 
-  // ============================================================
-  // MENÚ SETMANAL
-  // ============================================================
+ // ============================================================
+// MENÚ SETMANAL — generador equilibrat (v2)
+// Reemplaça menuCandidates, chooseRecipe i generateWeeklyMenu
+// ============================================================
 
-  function menuCandidates(meal, options, dayIndex) {
-    return recipes.filter(r => {
-      if (norm(r.Menu) !== "si") return false;
-      if (!mealAllowed(r, meal)) return false;
-      if (options.tupper === "yes" && norm(r.Tupper) !== "si") return false;
-      if (dayIndex < 5 && options.weekdayOnly && norm(r.EntreSetmana) !== "si") return false;
-      return true;
-    });
-  }
+// Un slot és "entre setmana" si cau de dilluns a divendres (índex 0..4).
+// Així, en mode "Setmana completa" els plats elaborats només poden anar
+// a dissabte/diumenge, i els dies feiners reben plats aptes entre setmana.
+function isWeekdaySlot(dayIndex) {
+  return dayIndex < 5;
+}
 
-  function chooseRecipe(candidates, usedNames, usedTypesToday, options) {
-    const available = candidates.filter(r => !usedNames.has(r.Nom));
-    if (!available.length) return null;
+// Bases normalitzades d'una recepta (proteïna o ingredient principal).
+function baseList(r) {
+  return Array.isArray(r.Base) ? r.Base.map(norm).filter(Boolean) : [];
+}
 
-    const scored = available.map(r => {
-      let score = Math.random() * 12;
-      if (usedTypesToday.has(r.Tipus)) score -= 100;
-      if (options.tupper === "prefer" && norm(r.Tupper) === "si") score += 18;
-      if (norm(r.EntreSetmana) === "si") score += 3;
-      if (norm(r.Dificultat) === "facil") score += 2;
-      return { recipe: r, score };
-    }).sort((a, b) => b.score - a.score);
+function menuCandidates(meal, options, dayIndex) {
+  const weekdaySuitable = isWeekdaySlot(dayIndex);
+  return recipes.filter(r => {
+    if (norm(r.Menu) !== "si") return false;
+    if (!mealAllowed(r, meal)) return false;
+    if (options.tupper === "yes" && norm(r.Tupper) !== "si") return false;
+    // Dl..Dv: només plats marcats aptes entre setmana. Cap de setmana: lliure.
+    if (weekdaySuitable && norm(r.EntreSetmana) !== "si") return false;
+    return true;
+  });
+}
 
-    return scored[0]?.recipe || null;
-  }
+// ctx porta l'estat d'equilibri de tota la setmana i del dia en curs.
+function chooseRecipe(candidates, ctx, options) {
+  const available = candidates.filter(r => !ctx.usedNames.has(r.Nom));
+  if (!available.length) return null;
 
-  function generateWeeklyMenu() {
-    const period = document.getElementById("menuPeriod").value;
-    const mealsMode = document.getElementById("menuMeals").value;
-    const tupper = document.getElementById("menuTupper").value;
+  const scored = available.map(r => {
+    let score = Math.random() * 8;            // una mica d'atzar per no repetir setmanes
+    const tipus = r.Tipus || "Altres";
+    const bases = baseList(r);
 
-    const options = { weekdayOnly: period === "weekday", tupper };
-    const days = options.weekdayOnly ? MENU_DAYS.slice(0, 5) : MENU_DAYS.slice();
-    const meals = mealsMode === "both" ? ["Dinar", "Sopar"] : [mealsMode === "lunch" ? "Dinar" : "Sopar"];
+    // No repetir el mateix Tipus dins d'un mateix dia (dinar i sopar).
+    if (ctx.typesToday.has(tipus)) score -= 100;
 
-    const usedNames = new Set();
-    weeklyMenu = [];
-    replacedSlots = new Set();
+    // Repartir els Tipus al llarg de la setmana (evita 5 llegums).
+    score -= 30 * (ctx.typeWeek.get(tipus) || 0);
 
-    days.forEach((day, dayIndex) => {
-      const usedTypesToday = new Set();
+    // Repartir les bases a la setmana (evita pollastre cada dia).
+    bases.forEach(b => { score -= 12 * (ctx.baseWeek.get(b) || 0); });
 
-      meals.forEach(meal => {
-        let candidates = menuCandidates(meal, options, dayIndex);
+    // Penalitzar repetir base d'ahir (dos dies seguits amb la mateixa proteïna).
+    if (bases.some(b => ctx.basesYesterday.has(b))) score -= 20;
 
-        if (!candidates.length && dayIndex < 5 && options.weekdayOnly) {
-          candidates = recipes.filter(r =>
-            norm(r.Menu) === "si" && mealAllowed(r, meal) &&
-            (tupper !== "yes" || norm(r.Tupper) === "si")
-          );
-        }
+    // No repetir base el mateix dia.
+    if (bases.some(b => ctx.basesToday.has(b))) score -= 25;
 
-        let chosen = chooseRecipe(candidates, usedNames, usedTypesToday, options);
-        if (!chosen && candidates.length) {
-          chosen = chooseRecipe(candidates, new Set(), usedTypesToday, options);
-        }
+    // Preferència de tupper.
+    if (options.tupper === "prefer" && norm(r.Tupper) === "si") score += 15;
 
-        weeklyMenu.push({
-          day,
-          meal,
-          recipeName: chosen ? chosen.Nom : ""
+    return { recipe: r, score };
+  }).sort((a, b) => b.score - a.score);
+
+  return scored[0]?.recipe || null;
+}
+
+function generateWeeklyMenu() {
+  const period = document.getElementById("menuPeriod").value;
+  const mealsMode = document.getElementById("menuMeals").value;
+  const tupper = document.getElementById("menuTupper").value;
+
+  const options = { tupper };
+  const days = period === "weekday" ? MENU_DAYS.slice(0, 5) : MENU_DAYS.slice();
+  const meals = mealsMode === "both"
+    ? ["Dinar", "Sopar"]
+    : [mealsMode === "lunch" ? "Dinar" : "Sopar"];
+
+  const ctx = {
+    usedNames: new Set(),      // noms ja usats aquesta setmana
+    typeWeek: new Map(),       // recompte de Tipus a la setmana
+    baseWeek: new Map(),       // recompte de bases a la setmana
+    basesYesterday: new Set(), // bases del dia anterior
+    typesToday: new Set(),     // Tipus del dia en curs
+    basesToday: new Set()      // bases del dia en curs
+  };
+
+  weeklyMenu = [];
+  replacedSlots = new Set();
+
+  days.forEach((day, dayIndex) => {
+    ctx.typesToday = new Set();
+    ctx.basesToday = new Set();
+
+    meals.forEach(meal => {
+      let candidates = menuCandidates(meal, options, dayIndex);
+
+      // Fallback 1: si un dia feiner no té prou plats aptes entre setmana,
+      // relaxem la restricció i deixem qualsevol plat de menú.
+      if (!candidates.length) {
+        candidates = recipes.filter(r =>
+          norm(r.Menu) === "si" &&
+          mealAllowed(r, meal) &&
+          (tupper !== "yes" || norm(r.Tupper) === "si")
+        );
+      }
+
+      let chosen = chooseRecipe(candidates, ctx, options);
+
+      // Fallback 2: si tot està repetit, permetem repetir nom com a últim recurs.
+      if (!chosen && candidates.length) {
+        const relaxed = { ...ctx, usedNames: new Set() };
+        chosen = chooseRecipe(candidates, relaxed, options);
+      }
+
+      weeklyMenu.push({ day, meal, recipeName: chosen ? chosen.Nom : "" });
+
+      if (chosen) {
+        const tipus = chosen.Tipus || "Altres";
+        ctx.usedNames.add(chosen.Nom);
+        ctx.typesToday.add(tipus);
+        ctx.typeWeek.set(tipus, (ctx.typeWeek.get(tipus) || 0) + 1);
+        baseList(chosen).forEach(b => {
+          ctx.basesToday.add(b);
+          ctx.baseWeek.set(b, (ctx.baseWeek.get(b) || 0) + 1);
         });
-
-        if (chosen) {
-          usedNames.add(chosen.Nom);
-          usedTypesToday.add(chosen.Tipus);
-        }
-      });
+      }
     });
 
-    renderWeeklyMenu();
-    const empty = weeklyMenu.filter(s => !s.recipeName).length;
-    document.getElementById("menuStatus").textContent = empty
-      ? `⚠️ Falten ${empty} àpat${empty === 1 ? "" : "s"} per manca de receptes.`
-      : "✅ Menú generat!";
-  }
+    // El que s'ha cuinat avui passa a ser "ahir" per al dia següent.
+    ctx.basesYesterday = new Set(ctx.basesToday);
+  });
+
+  renderWeeklyMenu();
+  const empty = weeklyMenu.filter(s => !s.recipeName).length;
+  document.getElementById("menuStatus").textContent = empty
+    ? `⚠️ Falten ${empty} àpat${empty === 1 ? "" : "s"} per manca de receptes aptes.`
+    : "✅ Menú generat i equilibrat!";
+}
 
   function renderWeeklyMenu() {
     const grid = document.getElementById("menuGrid");
@@ -1943,7 +1998,7 @@ function setTheme(theme) {
     const candidates = recipes.filter(r => {
       const apat = r.Àpat || "Tots dos";
       return (apat === "Tots dos" || apat === meal) &&
-        (r.Menu || "No") === "Sí" &&
+        norm(r.Menu) === "si" &&
         r.Nom !== currentRecipeName;
     });
 
