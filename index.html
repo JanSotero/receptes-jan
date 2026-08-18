@@ -1008,9 +1008,9 @@
 <div class="wrap" id="appWrap">
 
   <header>
-    <p class="eyebrow">Receptari de Jan</p>
-    <h1>Què <span>cuino</span> avui?</h1>
-    <p class="subtitle">Receptes clares, per cuinar sense distraccions</p>
+    <p class="eyebrow">Recull de receptes d'en Jan</p>
+    <h1>Què <span>cuinem</span> avui?</h1>
+    <p class="subtitle">Pels dies d'antull i els de mandra</p>
   </header>
 
   <!-- CATEGORIES SCROLL -->
@@ -1177,6 +1177,7 @@
         <div class="field"><label>Dificultat</label><select id="fDificultat"><option>Fàcil</option><option>Mitjana</option><option>Elaborada</option></select></div>
         <div class="field"><label>Menú</label><select id="fMenu"><option>Sí</option><option>No</option></select></div>
         <div class="field"><label>Tipus</label><select id="fTipus"><option>Carn</option><option>Peix</option><option>Llegum</option><option>Pasta</option><option>Arròs</option><option>Ou</option><option>Verdura</option><option>Altres</option></select></div>
+        <div class="field"><label>Pes</label><select id="fPes"><option>Lleuger</option><option selected>Mitjà</option><option>Contundent</option></select></div>
         <div class="field"><label>Estat</label><select id="fEstat"><option value="publicada">Publicada</option><option value="esborrany">Esborrany</option></select></div>
         <div class="field editor-full">
           <label>Etiquetes (separades per coma)</label>
@@ -1864,6 +1865,7 @@ function setTheme(theme) {
     document.getElementById("fDificultat").value = recipe.Dificultat || "Mitjana";
     document.getElementById("fMenu").value = recipe.Menu || "No";
     document.getElementById("fTipus").value = recipe.Tipus || "Altres";
+    document.getElementById("fPes").value = recipe.Pes || "Mitjà";
     document.getElementById("saveMessage").textContent = "";
     document.getElementById("editorModal").classList.add("show");
     document.body.style.overflow = "hidden";
@@ -1886,6 +1888,7 @@ function setTheme(theme) {
     document.getElementById("fDificultat").value = "Mitjana";
     document.getElementById("fMenu").value = "No";
     document.getElementById("fTipus").value = "Altres";
+    document.getElementById("fPes").value = "Mitjà";
   }
 
   function collectEditorRecipe() {
@@ -1903,7 +1906,8 @@ function setTheme(theme) {
       EntreSetmana: document.getElementById("fEntreSetmana").value,
       Dificultat: document.getElementById("fDificultat").value,
       Menu: document.getElementById("fMenu").value,
-      Tipus: document.getElementById("fTipus").value
+      Tipus: document.getElementById("fTipus").value,
+      Pes: document.getElementById("fPes").value
     };
   }
 
