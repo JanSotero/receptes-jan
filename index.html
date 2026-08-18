@@ -933,6 +933,28 @@
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+    .shopping-group { margin-bottom: 14px; }
+.shopping-group-title {
+  font-size: 11px; font-weight: 900; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--olive); margin: 0 0 6px;
+}
+.shopping-item {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; margin-bottom: 5px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper2); text-align: left; color: var(--ink);
+  font-size: 15px; transition: opacity .15s;
+}
+.shopping-item .box {
+  flex: 0 0 24px; width: 24px; height: 24px; border-radius: 6px;
+  border: 2px solid var(--muted); display: flex; align-items: center;
+  justify-content: center; font-size: 14px;
+}
+.shopping-item.have { opacity: .5; }
+.shopping-item.have .box { background: var(--success); border-color: var(--success); color: #fff; }
+.shopping-item.have .txt { text-decoration: line-through; }  
+
   </style>
 </head>
 
@@ -1016,6 +1038,7 @@
       <div class="menu-actions">
         <button class="tool" id="copyMenu">📋 Copiar</button>
         <button class="tool" id="downloadMenu">📥 Descarregar</button>
+        <button class="tool" id="shoppingMenu">🛒 Compra</button>
       </div>
     </div>
 
@@ -1152,6 +1175,18 @@
     </div>
     <p class="hint" id="selectorHint" style="font-size:13px;color:var(--muted);margin:0 0 10px;"></p>
     <div id="selectorResults"></div>
+  </div>
+</div>
+  <div class="modal" id="shoppingModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>🛒 Llista de la compra</h2>
+      <button class="close" id="closeShopping">✕</button>
+    </div>
+    <p class="hint" id="shoppingHint" style="font-size:12px;color:var(--muted);margin:0 0 10px;"></p>
+    <div id="shoppingList"></div>
+    <button class="tool gold" id="copyShopping" style="width:100%;padding:12px;border-radius:10px;font-weight:800;margin-top:12px;">📋 Copiar el que falta</button>
+    <div class="status" id="shoppingStatus"></div>
   </div>
 </div>
 
@@ -1631,6 +1666,7 @@ function setTheme(theme) {
       <button class="fav-btn ${isFav ? 'is-fav' : ''}" id="detailFavBtn">
         ${isFav ? "⭐ Treure dels favorits" : "☆ Afegir a favorits"}
       </button>
+      <button class="fav-btn" id="shoppingBtn">🛒 Llista de la compra</button>
     `;
 
     document.getElementById("detailFavBtn").onclick = function() {
@@ -2020,6 +2056,132 @@ function generateWeeklyMenu() {
     }
   }
 
+  function parseIngredients(str) {
+  const s = String(str || "");
+  // Separador canònic: la barra. Si una recepta encara va amb comes
+  // (les de cap de setmana), hi caiem de fallback.
+  const parts = s.includes("|") ? s.split("|") : s.split(",");
+  return parts.map(x => x.trim()).filter(Boolean);
+}
+ 
+function buildRecipeShoppingGroups(recipe) {
+  return [{ title: recipe.Nom, items: parseIngredients(recipe.Ingredients) }];
+}
+ 
+function buildMenuShoppingGroups() {
+  const groups = [];
+  const seen = new Set();
+  weeklyMenu.forEach(slot => {
+    if (!slot.recipeName || seen.has(slot.recipeName)) return; // un plat repetit no es duplica
+    seen.add(slot.recipeName);
+    const r = recipes.find(x => x.Nom === slot.recipeName);
+    if (r) groups.push({ title: r.Nom, items: parseIngredients(r.Ingredients) });
+  });
+  return groups;
+}
+ 
+function renderShoppingList(groups, hintText, emptyText) {
+  document.getElementById("shoppingHint").textContent = hintText || "";
+  document.getElementById("shoppingStatus").textContent = "";
+  const box = document.getElementById("shoppingList");
+ 
+  const hasItems = groups.some(g => g.items.length);
+  if (!hasItems) {
+    box.innerHTML = `<div class="empty"><strong>Sense ingredients</strong>${escapeHtml(emptyText || "No hi ha res per llistar.")}</div>`;
+    return;
+  }
+ 
+  box.innerHTML = groups.map(g => `
+    <div class="shopping-group">
+      <div class="shopping-group-title">${escapeHtml(g.title)}</div>
+      ${g.items.map(it => `
+        <button class="shopping-item" onclick="toggleShoppingItem(this)">
+          <span class="box">☐</span>
+          <span class="txt">${escapeHtml(it)}</span>
+        </button>
+      `).join("")}
+    </div>
+  `).join("");
+}
+ 
+function toggleShoppingItem(btn) {
+  btn.classList.toggle("have");
+  btn.querySelector(".box").textContent = btn.classList.contains("have") ? "✓" : "☐";
+}
+ 
+function openRecipeShoppingList(recipe) {
+  if (!recipe) return;
+  renderShoppingList(
+    buildRecipeShoppingGroups(recipe),
+    "Marca el que ja tens. Copiar exporta només el que falta."
+  );
+  document.getElementById("shoppingModal").classList.add("show");
+  document.body.style.overflow = "hidden";
+}
+ 
+function openMenuShoppingList() {
+  renderShoppingList(
+    buildMenuShoppingGroups(),
+    "Ingredients del menú d'aquesta setmana, per plat. Marca el que ja tens.",
+    "Encara no has generat cap menú aquesta setmana."
+  );
+  document.getElementById("shoppingModal").classList.add("show");
+  document.body.style.overflow = "hidden";
+}
+ 
+function closeShopping() {
+  document.getElementById("shoppingModal").classList.remove("show");
+  document.body.style.overflow = "";
+}
+
+  function copyShoppingList() {
+  const groups = [...document.querySelectorAll("#shoppingList .shopping-group")];
+  const lines = [];
+ 
+  groups.forEach(g => {
+    const title = (g.querySelector(".shopping-group-title")?.textContent || "").trim();
+    const items = [...g.querySelectorAll(".shopping-item")]
+      .filter(el => !el.classList.contains("have"))
+      .map(el => (el.querySelector(".txt")?.textContent || "").trim())
+      .filter(Boolean);
+    if (items.length) {
+      lines.push(title.toUpperCase());
+      items.forEach(i => lines.push("- " + i));
+      lines.push("");
+    }
+  });
+ 
+  const status = document.getElementById("shoppingStatus");
+  if (!lines.length) {
+    status.textContent = "Ho tens tot marcat, res per comprar.";
+    return;
+  }
+ 
+  const text = lines.join("\n").trim();
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => status.textContent = "✅ Copiat!")
+      .catch(() => shoppingCopyFallback(text, status));
+  } else {
+    shoppingCopyFallback(text, status);
+  }
+}
+ 
+function shoppingCopyFallback(text, status) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.cssText = "position:fixed;opacity:0;left:-9999px";
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand("copy");
+    status.textContent = "✅ Copiat!";
+  } catch {
+    status.textContent = "❌ No s'ha pogut copiar.";
+  }
+  document.body.removeChild(ta);
+}
+
   // ============================================================
   // SUBSTITUIR PLAT DEL MENÚ
   // ============================================================
@@ -2261,6 +2423,9 @@ function generateWeeklyMenu() {
   document.getElementById("copyMenu").onclick = copyMenuToClipboard;
   document.getElementById("downloadMenu").onclick = downloadMenuAsTxt;
   document.getElementById("closeMenuSelector").onclick = closeMenuSelector;
+  document.getElementById("closeShopping").onclick = closeShopping;
+  document.getElementById("copyShopping").onclick = copyShoppingList;
+  document.getElementById("shoppingMenu").onclick = openMenuShoppingList;
 
   document.getElementById("menuPeriod").addEventListener("change", renderWeeklyMenu);
   document.getElementById("menuMeals").addEventListener("change", renderWeeklyMenu);
