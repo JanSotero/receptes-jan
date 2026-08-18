@@ -2488,18 +2488,42 @@ function setTheme(theme) {
     updateCategoryChips();
   };
 
-  document.getElementById("random").onclick = function() {
-    if (!recipes.length) return;
-    const pool = currentCategory ? recipes.filter(r => r.Categoria === currentCategory) : recipes;
-    const chosen = pool[Math.floor(Math.random() * pool.length)];
-    if (!chosen) return;
-    currentCategory = chosen.Categoria;
-    favoritesOnly = false;
-    currentSearch = "";
-    renderResults();
-    updateCategoryChips();
-    openRecipeDetail(chosen);
-  };
+  // ============================================================
+// BOTÓ SORPRESA (v2)
+// Reemplaça el listener actual de #random.
+//
+// Canvis:
+//  - NO s'autoimposa la categoria del plat que surt (aquell era el bug
+//    que et deixava atrapat repetint el mateix plat).
+//  - Respecta la categoria que TU tinguis seleccionada; si estàs a
+//    "Totes", tria de tot el receptari.
+//  - Evita repetir l'últim plat que ha sortit (si n'hi ha més d'un).
+// ============================================================
+
+let lastRandomName = null;
+
+document.getElementById("random").onclick = function() {
+  if (!recipes.length) return;
+
+  // Respecta el filtre de categoria actiu, però no en crea cap de nou.
+  let pool = currentCategory
+    ? recipes.filter(r => r.Categoria === currentCategory)
+    : recipes.slice();
+
+  if (!pool.length) return;
+
+  // Evita repetir l'últim, si hi ha alternativa.
+  if (pool.length > 1 && lastRandomName) {
+    const filtered = pool.filter(r => r.Nom !== lastRandomName);
+    if (filtered.length) pool = filtered;
+  }
+
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+  if (!chosen) return;
+
+  lastRandomName = chosen.Nom;
+  openRecipeDetail(chosen);
+};
 
   document.getElementById("favorites").onclick = function() {
     favoritesOnly = !favoritesOnly;
