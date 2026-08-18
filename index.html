@@ -953,7 +953,16 @@
 }
 .shopping-item.have { opacity: .5; }
 .shopping-item.have .box { background: var(--success); border-color: var(--success); color: #fff; }
-.shopping-item.have .txt { text-decoration: line-through; }  
+.shopping-item.have .txt { text-decoration: line-through; }
+
+.ing-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.ing-row input { flex: 1; }
+.ing-row .ing-remove {
+  flex: 0 0 40px; width: 40px; height: 40px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--paper2);
+  color: var(--danger); font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+}
 
   </style>
 </head>
@@ -1128,8 +1137,12 @@
           <input id="fBase" placeholder="Pollastre, Arròs...">
         </div>
         <div class="field editor-full">
-          <label>Tags</label>
-          <input id="fTags" placeholder="pollastre, ceba, soja">
+          <label>Ingredients (un per línia)</label>
+          <div id="fIngredientsList"></div>
+          <button type="button" class="tool" id="addIngredientRow"
+            style="margin-top:6px;padding:8px 14px;border-radius:8px;font-weight:800;font-size:13px;">
+            ＋ Afegir ingredient
+          </button>
         </div>
         <div class="field editor-full">
           <label>Ingredients</label>
@@ -1716,6 +1729,46 @@ function setTheme(theme) {
   // EDITOR
   // ============================================================
 
+  function renderIngredientRows(items) {
+  const box = document.getElementById("fIngredientsList");
+  box.innerHTML = "";
+  const list = (items && items.length) ? items : [""]; // sempre almenys una fila
+  list.forEach(v => addIngredientRow(v));
+}
+ 
+function addIngredientRow(value) {
+  const box = document.getElementById("fIngredientsList");
+ 
+  const row = document.createElement("div");
+  row.className = "ing-row";
+ 
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value || "";
+  input.placeholder = "ex: 2 contracuixes de pollastre";
+ 
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "ing-remove";
+  del.textContent = "×";
+  del.setAttribute("aria-label", "Treure ingredient");
+  del.onclick = function () {
+    row.remove();
+    if (!box.querySelector(".ing-row")) addIngredientRow(""); // no deixar-ho buit del tot
+  };
+ 
+  row.appendChild(input);
+  row.appendChild(del);
+  box.appendChild(row);
+}
+ 
+function collectIngredientRows() {
+  return [...document.querySelectorAll("#fIngredientsList .ing-row input")]
+    .map(el => el.value.trim())
+    .filter(Boolean)
+    .join(" | ");
+}
+  
   let editingRecipeId = null;
 
   function openAdd() {
@@ -1734,7 +1787,7 @@ function setTheme(theme) {
     document.getElementById("fCategory").value = recipe.Categoria || "";
     document.getElementById("fBase").value = (recipe.Base || []).join(", ");
     document.getElementById("fTags").value = (recipe.Tags || []).join(", ");
-    document.getElementById("fIngredients").value = recipe.Ingredients || "";
+    renderIngredientRows(parseIngredients(recipe.Ingredients));
     document.getElementById("fSteps").value = (recipe.Passos || []).join("\n");
     document.getElementById("fEstat").value = recipe.Estat || "publicada";
     document.getElementById("fApat").value = recipe.Àpat || "Tots dos";
@@ -1754,7 +1807,8 @@ function setTheme(theme) {
   }
 
   function resetEditorForm() {
-    ["fName", "fBase", "fTags", "fIngredients", "fSteps"].forEach(id => document.getElementById(id).value = "");
+    ["fName", "fBase", "fTags", "fSteps"].forEach(id => document.getElementById(id).value = "");
+    renderIngredientRows([]);
     document.getElementById("fCategory").value = "";
     document.getElementById("fEstat").value = "publicada";
     document.getElementById("fApat").value = "Tots dos";
@@ -1772,7 +1826,7 @@ function setTheme(theme) {
       Categoria: document.getElementById("fCategory").value,
       Base: document.getElementById("fBase").value.split(",").map(x => x.trim()).filter(Boolean),
       Tags: document.getElementById("fTags").value.split(",").map(x => x.trim()).filter(Boolean),
-      Ingredients: document.getElementById("fIngredients").value.trim(),
+      Ingredients: collectIngredientRows(),
       Passos: document.getElementById("fSteps").value.split("\n").map(x => x.trim()).filter(Boolean),
       Estat: document.getElementById("fEstat").value,
       Àpat: document.getElementById("fApat").value,
@@ -2425,6 +2479,7 @@ function shoppingCopyFallback(text, status) {
   document.getElementById("closeEditor").onclick = closeEditor;
   document.getElementById("cancelEditor").onclick = closeEditor;
   document.getElementById("saveRecipe").onclick = saveRecipe;
+  document.getElementById("addIngredientRow").onclick = () => addIngredientRow("");
 
   document.getElementById("generateMenu").onclick = generateWeeklyMenu;
   document.getElementById("saveMenu").onclick = saveWeeklyMenuToSheet;
