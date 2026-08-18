@@ -1885,29 +1885,38 @@ function menuCandidates(meal, options, dayIndex) {
 }
 
 // ctx porta l'estat d'equilibri de tota la setmana i del dia en curs.
+// ============================================================
+// MENÚ SETMANAL — generador equilibrat (v3: afegeix el Pes)
+// Reemplaça chooseRecipe i generateWeeklyMenu.
+// (menuCandidates, isWeekdaySlot i baseList es queden igual que a la v2.)
+// ============================================================
+
 function chooseRecipe(candidates, ctx, options) {
   const available = candidates.filter(r => !ctx.usedNames.has(r.Nom));
   if (!available.length) return null;
 
   const scored = available.map(r => {
-    let score = Math.random() * 8;            // una mica d'atzar per no repetir setmanes
+    let score = Math.random() * 8;
     const tipus = r.Tipus || "Altres";
     const bases = baseList(r);
+    // Pes: contundent / mitjà / lleuger. Buit = mitjà (no trenca res).
+    const pes = norm(r.Pes) || "mitja";
 
-    // No repetir el mateix Tipus dins d'un mateix dia (dinar i sopar).
+    // No repetir el mateix Tipus dins d'un mateix dia.
     if (ctx.typesToday.has(tipus)) score -= 100;
 
-    // Repartir els Tipus al llarg de la setmana (evita 5 llegums).
+    // Repartir Tipus i bases al llarg de la setmana.
     score -= 30 * (ctx.typeWeek.get(tipus) || 0);
-
-    // Repartir les bases a la setmana (evita pollastre cada dia).
     bases.forEach(b => { score -= 12 * (ctx.baseWeek.get(b) || 0); });
 
-    // Penalitzar repetir base d'ahir (dos dies seguits amb la mateixa proteïna).
+    // No repetir base d'ahir ni del mateix dia.
     if (bases.some(b => ctx.basesYesterday.has(b))) score -= 20;
-
-    // No repetir base el mateix dia.
     if (bases.some(b => ctx.basesToday.has(b))) score -= 25;
+
+    // Equilibri de pes dins del dia: evita dos lleugers junts (defecte principal)
+    // i, més fluix, dos contundents junts.
+    if (pes === "lleuger" && ctx.pesToday.has("lleuger")) score -= 40;
+    if (pes === "contundent" && ctx.pesToday.has("contundent")) score -= 15;
 
     // Preferència de tupper.
     if (options.tupper === "prefer" && norm(r.Tupper) === "si") score += 15;
@@ -1930,12 +1939,13 @@ function generateWeeklyMenu() {
     : [mealsMode === "lunch" ? "Dinar" : "Sopar"];
 
   const ctx = {
-    usedNames: new Set(),      // noms ja usats aquesta setmana
-    typeWeek: new Map(),       // recompte de Tipus a la setmana
-    baseWeek: new Map(),       // recompte de bases a la setmana
-    basesYesterday: new Set(), // bases del dia anterior
-    typesToday: new Set(),     // Tipus del dia en curs
-    basesToday: new Set()      // bases del dia en curs
+    usedNames: new Set(),
+    typeWeek: new Map(),
+    baseWeek: new Map(),
+    basesYesterday: new Set(),
+    typesToday: new Set(),
+    basesToday: new Set(),
+    pesToday: new Set()      // pesos ja usats avui (lleuger/mitja/contundent)
   };
 
   weeklyMenu = [];
@@ -1944,12 +1954,11 @@ function generateWeeklyMenu() {
   days.forEach((day, dayIndex) => {
     ctx.typesToday = new Set();
     ctx.basesToday = new Set();
+    ctx.pesToday = new Set();
 
     meals.forEach(meal => {
       let candidates = menuCandidates(meal, options, dayIndex);
 
-      // Fallback 1: si un dia feiner no té prou plats aptes entre setmana,
-      // relaxem la restricció i deixem qualsevol plat de menú.
       if (!candidates.length) {
         candidates = recipes.filter(r =>
           norm(r.Menu) === "si" &&
@@ -1959,8 +1968,6 @@ function generateWeeklyMenu() {
       }
 
       let chosen = chooseRecipe(candidates, ctx, options);
-
-      // Fallback 2: si tot està repetit, permetem repetir nom com a últim recurs.
       if (!chosen && candidates.length) {
         const relaxed = { ...ctx, usedNames: new Set() };
         chosen = chooseRecipe(candidates, relaxed, options);
@@ -1973,6 +1980,7 @@ function generateWeeklyMenu() {
         ctx.usedNames.add(chosen.Nom);
         ctx.typesToday.add(tipus);
         ctx.typeWeek.set(tipus, (ctx.typeWeek.get(tipus) || 0) + 1);
+        ctx.pesToday.add(norm(chosen.Pes) || "mitja");
         baseList(chosen).forEach(b => {
           ctx.basesToday.add(b);
           ctx.baseWeek.set(b, (ctx.baseWeek.get(b) || 0) + 1);
@@ -1980,7 +1988,6 @@ function generateWeeklyMenu() {
       }
     });
 
-    // El que s'ha cuinat avui passa a ser "ahir" per al dia següent.
     ctx.basesYesterday = new Set(ctx.basesToday);
   });
 
