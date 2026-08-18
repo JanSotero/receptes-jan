@@ -1562,6 +1562,13 @@ function setTheme(theme) {
     if (!box) return;
 
     box.innerHTML = `<button class="category-chip active" data-cat="all">📋 Totes</button>`;
+    box.querySelector('[data-cat="all"]').onclick = function() {
+  currentCategory = null;
+  favoritesOnly = false;
+  currentSearch = "";
+  renderResults();
+  updateCategoryChips();
+};
 
     categories.forEach(cat => {
       const btn = document.createElement("button");
