@@ -1747,41 +1747,77 @@ function setTheme(theme) {
     };
   }
 
-  function saveRecipe() {
-    const recipe = collectEditorRecipe();
-    const msg = document.getElementById("saveMessage");
+// ============================================================
+// GUARDAR RECEPTA — connexió real amb el Sheet (v2)
+// Reemplaça la funció saveRecipe i afegeix reloadRecipesAfterSave.
+// No cal tocar el backend: el doPost de l'Apps Script ja crida
+// handleRequest, i un POST form-encoded omple e.parameter tot sol.
+// ============================================================
 
-    if (!recipe.Nom || !recipe.Categoria) {
-      msg.textContent = "⚠️ Nom i categoria obligatoris.";
-      return;
-    }
+function saveRecipe() {
+  const recipe = collectEditorRecipe();
+  const msg = document.getElementById("saveMessage");
 
-    msg.textContent = "Guardant...";
-
-    // Aquí hauríem de cridar a l'Apps Script via fetch
-    // Per ara, ho guardem localment i recarreguem
-    if (editingRecipeId) {
-      const index = recipes.findIndex(r => String(r.ID) === String(editingRecipeId));
-      if (index !== -1) {
-        recipes[index] = { ...recipes[index], ...recipe };
-        msg.textContent = "✅ Guardat!";
-        setTimeout(() => {
-          closeEditor();
-          renderResults();
-        }, 300);
-      }
-    } else {
-      const newId = String(recipes.length + 1).padStart(3, "0");
-      recipe.ID = newId;
-      recipes.push(recipe);
-      msg.textContent = "✅ Guardat!";
-      setTimeout(() => {
-        closeEditor();
-        renderResults();
-      }, 300);
-    }
+  if (!recipe.Nom || !recipe.Categoria) {
+    msg.textContent = "⚠️ Nom i categoria obligatoris.";
+    return;
   }
 
+  msg.textContent = "Guardant...";
+
+  const action = editingRecipeId ? "updateRecipe" : "addRecipe";
+
+  // POST form-encoded: és una "simple request" (no dispara preflight CORS)
+  // i omple e.parameter al doPost, que handleRequest ja sap llegir.
+  const body = new URLSearchParams({
+    action: action,
+    data: JSON.stringify(recipe)
+  });
+
+  fetch(APP_SCRIPT_URL, { method: "POST", body: body })
+    .then(r => r.json())
+    .then(res => {
+      if (res && res.error) {
+        msg.textContent = "❌ " + res.error;
+        return;
+      }
+      msg.textContent = "✅ Guardat!";
+      reloadRecipesAfterSave(recipe.Nom);
+    })
+    .catch(() => {
+      // Si el navegador bloqueja la lectura de la resposta (CORS), el POST
+      // igualment ha arribat al servidor: rellegim del Sheet per confirmar.
+      msg.textContent = "✅ Enviat, refrescant...";
+      reloadRecipesAfterSave(recipe.Nom);
+    });
+}
+
+// Rellegeix les receptes del Sheet (JSONP), refresca la UI i reobre el
+// detall de la recepta guardada per confirmar que hi és.
+function reloadRecipesAfterSave(savedName) {
+  const callbackName = "jsonp_reload_" + Date.now();
+
+  window[callbackName] = function(data) {
+    if (Array.isArray(data)) recipes = data;
+    renderCategories();
+    renderResults();
+    updateFavCount();
+    closeEditor();
+    if (savedName) {
+      const saved = recipes.find(r => r.Nom === savedName);
+      if (saved) openRecipeDetail(saved);
+    }
+    delete window[callbackName];
+  };
+
+  const script = document.createElement("script");
+  script.src = APP_SCRIPT_URL + "?action=getRecipes&callback=" + callbackName;
+  script.onerror = function() {
+    closeEditor();
+    delete window[callbackName];
+  };
+  document.head.appendChild(script);
+}
  // ============================================================
 // MENÚ SETMANAL — generador equilibrat (v2)
 // Reemplaça menuCandidates, chooseRecipe i generateWeeklyMenu
