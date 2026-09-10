@@ -1988,6 +1988,31 @@ function setTheme(theme) {
       });
   }
 
+
+    function deleteRecipe(recipe) {
+    if (!confirm(`Segur que vols eliminar "${recipe.Nom}"? Aquesta acció no es pot desfer.`)) return;
+
+    const body = new URLSearchParams({
+      action: "deleteRecipe",
+      data: JSON.stringify({ ID: recipe.ID })
+    });
+
+    fetch(APP_SCRIPT_URL, { method: "POST", body: body })
+      .then(r => r.json())
+      .then(res => {
+        if (res && res.error) {
+          alert("❌ " + res.error);
+          return;
+        }
+        closeRecipeDetail();
+        reloadRecipesAfterSave(null);
+      })
+      .catch(() => {
+        closeRecipeDetail();
+        reloadRecipesAfterSave(null);
+      });
+  }
+  
   function reloadRecipesAfterSave(savedName) {
     const callbackName = "jsonp_reload_" + Date.now();
 
