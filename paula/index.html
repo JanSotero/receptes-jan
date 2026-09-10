@@ -1753,6 +1753,7 @@ function setTheme(theme) {
       renderResults();
     };
     document.getElementById("shoppingBtn").onclick = () => openRecipeShoppingList(recipe);
+    document.getElementById("deleteBtn").onclick = () => deleteRecipe(recipe);
 
     document.getElementById("detailEdit").onclick = function() {
       modal.classList.remove("show");
